@@ -21,93 +21,100 @@ const e = { // This is a dictionary of validation error messages.
   agreementOptions: 'agreement must be accepted',
 }
 
-// ✨ TASK: BUILD YOUR FORM SCHEMA HERE
-// The schema should use the error messages contained in the object above.
-
 const formSchema = Yup.object().shape ( {
   username: Yup
+    .string()
     .required(e.usernameRequired)
     .min(3, e.usernameMin)
     .max(20, e.usernameMax),
   favLanguage: Yup
+    .string()
     .required(e.favLanguageRequired)
     .oneOf( ['javascript', 'rust'], e.favLanguageOptions),
+  favFood: Yup
+    .string()
+    .required(e.favFoodRequired)
+    .oneOf( ['pizza', 'spaghetti', 'broccoli'], e.favFoodOptions),
   agreement: Yup
+    .boolean()
     .required(e.agreementRequired)
     .oneOf( [true], e.agreementOptions)
-
 })
 
 export default function App() {
-  // ✨ TASK: BUILD YOUR STATES HERE
-  // You will need states to track (1) the form, (2) the validation errors,
-  // (3) whether submit is disabled, (4) the success message from the server
-  // and (5) the failure message from the server.
 
-  const [formState, setFormState] = useState ({username: '', favLanguage: '', favFood: '', agreement: ''})
-
-  const [errors, setErrors] = useState({
+  const getInitialErrors = () => ({
     username: '',
     favLanguage: '',
     favFood: '',
     agreement: ''
   })
 
-  const [submitDisabled, setSubmitDisabled] = useState(true)
+  const getInitialForm = () => (
+    {username: '', 
+    favLanguage: '', 
+    favFood: '', 
+    agreement: false})
 
-  // ✨ TASK: BUILD YOUR EFFECT HERE
-  // Whenever the state of the form changes, validate it against the schema,
-  // and update the state that tracks whether the form is submittable.
-
+  const [formState, setFormState] = useState (getInitialForm)
+  const [errors, setErrors] = useState(getInitialErrors)
+  const [disabled, setDisabled] = useState(true)
+  const [successMessage, setSuccessMessage] = useState()
+  const [failMessage, setFailMessage] = useState()
 
   useEffect( () => {
     formSchema.isValid(formState).then (valid => {
-      setSubmitDisabled(!valid)
+      setDisabled(!valid)
+
     })
   }, [formState])
 
   const onChange = evt => {
-    // ✨ TASK: IMPLEMENT YOUR INPUT CHANGE HANDLER
-    // The logic is a bit different for the checkbox, but you can check
-    // whether the type of event target is "checkbox", and act accordingly.
-    // At every change, the updated value must be validated, and the validation
-    // error must be put in the state where we track front-end validation errors.
 
-    console.log(evt)
-    const targetValue = evt.target.type === 'checkbox'? evt.target.checked : evt.target.value
-    setFormState ( {...formState, [evt.target.name]: targetValue})
+    let {name, type, value, checked} = evt.target
+    value = type === 'checkbox'? checked : value
+    setFormState ( {...formState, [name]: value})
+
+    Yup.reach(formSchema, name).validate(value)
+      .then ( () => setErrors({...errors, [name]: ''}))
+      .catch ( (err) => setErrors( {...errors, [name]: err.errors[0]}))
   }
 
-  const onSubmit = evt => {
-    // ✨ TASK: IMPLEMENT YOUR SUBMIT HANDLER
-    // Lots to do here! Prevent default behavior, disable the form to avoid
-    // double submits, POST the form data to the endpoint. On success, reset
-    // the form. The success and failure messages from the server must be put
-    // in the states you have reserved for them, and the form
-    // should be re-enabled.
+
+
+  const submit = evt => {
 
     evt.preventDefault()
-    const newData = { username: formState.username, favLanguage: formState.favLanguage, favFood: formState.favFood, agreement:formState.agreement}
-    submitDisabled? axios.post('https://webapis.bloomtechdev.com/registration', newData)
+    const newData = { 
+      username: formState.username, 
+      favLanguage: formState.favLanguage, 
+      favFood: formState.favFood, 
+      agreement:formState.agreement}
+
+    axios.post('https://webapis.bloomtechdev.com/registration', newData)
     .then (res => {
       console.log(res)
+      setSuccessMessage(res.data.messsage)
+      setFailMessage()
       setFormState({username: '', favLanguage: '', favFood: '', agreement: ''})
     })
-    .catch (err => console.log('failed to send post request'))
-    : {}
+    .catch (err => {
+      setFailMessage(err.response.data.message)
+      setSuccessMessage()
+    })
   }
 
   return (
     <div> {/* TASK: COMPLETE THE JSX */}
       <h2>Create an Account</h2>
-      <form>
-        <h4 className="success">Success! Welcome, new user!</h4>
-        <h4 className="error">Sorry! Username is taken</h4>
+      <form onSubmit={submit}>
+        {successMessage && <h4 className="success">Success! Welcome, new user!</h4>}
+        {failMessage && <h4 className="error">Sorry! Username is taken</h4>}
 
         <div className="inputGroup">
           <label htmlFor="username">Username:</label>
           <input id="username" name="username" type="text" placeholder="Type Username" onChange={onChange}/>
-          <div className="validation">username is required</div>
+          {errors.username && <div className="validation">username is required</div>}
         </div>
 
         <div className="inputGroup">
@@ -122,7 +129,7 @@ export default function App() {
               Rust
             </label>
           </fieldset>
-          <div className="validation" onChange={onChange}>favLanguage is required</div>
+          {errors.favLanguage && <div className="validation">favLanguage is required</div>}
         </div>
 
         <div className="inputGroup">
@@ -133,7 +140,7 @@ export default function App() {
             <option value="spaghetti">Spaghetti</option>
             <option value="broccoli">Broccoli</option>
           </select>
-          <div className="validation">favFood is required</div>
+          {errors.favFood && <div className="validation">favFood is required</div>}
         </div>
 
         <div className="inputGroup">
@@ -141,11 +148,11 @@ export default function App() {
             <input id="agreement" type="checkbox" name="agreement" onChange={onChange}/>
             Agree to our terms
           </label>
-          <div className="validation">agreement is required</div>
+          {errors.agreement && <div className="validation">agreement is required</div>}
         </div>
 
         <div>
-          <input type="submit" disabled={false} onChange={onChange}/>
+          <input type="submit" disabled={disabled}/>
         </div>
       </form>
     </div>
